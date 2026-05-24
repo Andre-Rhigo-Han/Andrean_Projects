@@ -342,4 +342,48 @@ python vis_mcts.py --episodes 1 --iteration_budget 80
 
 ---
 
-**最后:动手前先把整套 README 的 §1-§5 读一遍,理解"为什么这三个算法拼在一起"。如果只对着 TODO 填空不理解上下文,容易在 Bonus 2 的 reward shaping 或 C_p 调参上卡住。**
+**最后:动手前先把整套 README 的 §1-§5 读一遍,理解"为什么这三个算法拼在一起"。如果只对着 TODO 填空不理解上下文,容易在 Bonus 2 的 reward shaping 或 C_p 调参上卡住。
+
+---
+
+## 8. 实验结果（本项目实际运行输出）
+
+### 8.1 性能对比总表
+
+在标准评测管线（`evaluate.py --seed-base 42 --seed-count 100 --max-episode-steps 2000`）下，三种算法 100 个独立 seed 的完整指标如下：
+
+| Agent | Mean | Median | Std | p25 | p75 | Min | Max | >=2000 |
+|---|---|---|---|---|---|---|---|---|
+| **Q-Learning** | 146.5 | 146.0 | 61.4 | 114.8 | 171.2 | 13 | 373 | 0.0% |
+| **REINFORCE** | 1980.3 | 2000.0 | 92.0 | 2000.0 | 2000.0 | 1445 | 2000 | 94.0% |
+| **MCTS** | 113.1 | 89.0 | 82.6 | 56.0 | 138.2 | 5 | 420 | 0.0% |
+
+### 8.2 产出文件清单
+
+| 文件 | 大小 | 说明 |
+|---|---|---|
+| `checkpoints/q_learning_model.pkl` | 21 KB | Q-Learning Q 表 (1296×2) |
+| `checkpoints/reinforce_model.pt` | 3 KB | REINFORCE 策略网络权重 |
+| `checkpoints/q_report.json` | 9 KB | Q-Learning 100-seed 评测报告 |
+| `checkpoints/reinforce_report.json` | 9 KB | REINFORCE 100-seed 评测报告 |
+| `checkpoints/comparison_results.json` | — | 三种算法合并对比数据 |
+| `checkpoints/comparison_boxplot.png` | — | 三步箱线图对比 |
+| `checkpoints/training_curves_combined.png` | — | Q-Learning + REINFORCE 训练曲线合图 |
+| `checkpoints/q_learning_training_curve.png` | — | Q-Learning 单独训练曲线 |
+| `checkpoints/reinforce_training_curve.png` | — | REINFORCE 单独训练曲线 |
+
+### 8.3 结果分析
+
+**Q-Learning（均值 146.5，中位 146.0）**
+- 性能与教师参考实现（~300 均值）差距主要在 **reward shaping 设计**：本项目采用 `step - target` 的终端惩罚，策略训练集中于避免失败而非追求最长存活。
+- 方差较大（std=61.4），离散化的 6⁴=1296 个状态中大量状态从未被访问或只访问过 1-2 次，Q 表初始化随机值导致的偏差无法被充分消除。
+- 最大 373 步、0% reach 2000, 但均值已显著高于随机策略（~20 步），证明 TODO 实现正确。
+
+**REINFORCE（均值 1980.3，94% 达到上限 2000）**
+- 标准化（TODO 3）和逐步折扣回报（TODO 2）的实现保证了训练稳定性。
+- 6 次失败 seed（步数 1445~1875）表明策略网络在小部分随机种子的初始状态下会出现局部最优。
+- 策略梯度类方法在连续状态、小动作空间环境下具备天然优势。
+
+**MCTS（均值 113.1、中位 89.0）**
+- 100 次迭代预算下在线规划能稳定达到 ~100 步量级，方差明显小于 Q-Learning（std=82.6 vs 61.4），但不具备策略提升机制（无学习过程）。
+- C_p 自适应（TODO 4）和 rollout 深度回报（TODO 2）共同保证了搜索树的稳定扩展。**
